@@ -59,95 +59,121 @@ def describe_image(client, img_path):
     A description ALLWAYS begins with "TOK style image of".
     70 tokens max.
     '''
+
     with open(img_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o-mini",  # Utilisation de GPT-4 Vision car gpt-4o-mini n'est pas disponible
         messages=[
-            {"role": "system", "content": describe_system_prompt},
-            {"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                {"type": "text", "text": "Provide a detailed description of this image based on the given instructions. Max 70 tokens."}
-            ]}
+            {
+                "role": "system",
+                "content": describe_system_prompt
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": "Provide a detailed description of this image based on the given instructions. Max 70 tokens."
+                    }
+                ]
+            }
         ],
         max_tokens=300,
     )
+
     return response.choices[0].message.content
 
 def main():
     st.title("Image Processing and Captions Generation for LORA Fine-Tuning")
 
-    if 'images_zip' not in st.session_state:
+    # Initialize state
+    if 'processed' not in st.session_state:
+        st.session_state.processed = False
         st.session_state.images_zip = None
-        st.session_state.processed_images_paths = []
+        st.session_state.descriptions_zip = None
 
-    # Step 1: Cropping and downloading processed images
-    uploaded_files = st.file_uploader("Upload images for cropping", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
+    # API Key Field
+    api_key = st.text_input("Enter your OpenAI API key", type="password")
 
-    if uploaded_files:
-        size = st.radio("Resize dimensions", (512, 1024))
+    uploaded_files = st.file_uploader("Upload images", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
 
-        if st.button("Crop and Resize Images"):
-            processed_images = []
-            st.session_state.processed_images_paths = []
+    if uploaded_files and api_key:
+        size = st.radio("Resize image size", (512, 1024))
+        
+        if st.button("Process images") or st.session_state.processed:
+            if not st.session_state.processed:
+                client = OpenAI(api_key=api_key)
+                processed_images = []
+                descriptions = []
 
-            output_dir = "processed_images"
-            os.makedirs(output_dir, exist_ok=True)
+                progress_bar = st.progress(0)
+                status_text = st.empty()
 
-            for i, uploaded_file in enumerate(uploaded_files):
-                image = Image.open(uploaded_file)
-                processed_image = crop_and_resize_image(image, size)
+                # Create a temporary directory
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    for i, uploaded_file in enumerate(uploaded_files):
+                        # Process the image
+                        image = Image.open(uploaded_file)
+                        processed_image = crop_and_resize_image(image, size)
+                        
+                        # Save the processed image in a temporary file
+                        temp_file_path = os.path.join(temp_dir, f"temp_image_{i}.jpg")
+                        processed_image.save(temp_file_path, format='JPEG')
+                        
+                        with open(temp_file_path, "rb") as img_file:
+                            processed_images.append((f"{i}.jpg", img_file.read()))
 
-                temp_file_path = os.path.join(output_dir, f"processed_image_{i}.jpg")
-                processed_image.save(temp_file_path, format='JPEG')
+                        # Generate the description
+                        with st.spinner(f"Generating description for image {i}..."):
+                            description = describe_image(client, temp_file_path)
+                        descriptions.append((f"{i}.txt", description.encode('utf-8')))
 
-                with open(temp_file_path, "rb") as img_file:
-                    processed_images.append((f"{i}.jpg", img_file.read()))
-                    st.session_state.processed_images_paths.append(temp_file_path)
+                        # Update progress bar
+                        progress = (i + 1) / len(uploaded_files)
+                        progress_bar.progress(progress)
+                        status_text.text(f"Processing image {i+1}/{len(uploaded_files)}")
 
-            images_zip = io.BytesIO()
-            with zipfile.ZipFile(images_zip, 'w') as zf:
-                for filename, data in processed_images:
-                    zf.writestr(filename, data)
+                # Create ZIP files
+                images_zip = io.BytesIO()
+                with zipfile.ZipFile(images_zip, 'w') as zf:
+                    for filename, data in processed_images:
+                        zf.writestr(filename, data)
 
-            st.session_state.images_zip = images_zip.getvalue()
+                descriptions_zip = io.BytesIO()
+                with zipfile.ZipFile(descriptions_zip, 'w') as zf:
+                    for filename, data in descriptions:
+                        zf.writestr(filename, data)
 
+                # Save ZIPs in session state
+                st.session_state.images_zip = images_zip.getvalue()
+                st.session_state.descriptions_zip = descriptions_zip.getvalue()
+                st.session_state.processed = True
+
+            # Display download buttons
             st.download_button(
-                label="Download Cropped Images",
+                label="Download processed images",
                 data=st.session_state.images_zip,
-                file_name="cropped_images.zip",
+                file_name="processed_images.zip",
                 mime="application/zip"
             )
 
-    # Step 2: Generating descriptions
-    if st.session_state.processed_images_paths:
-        api_key = st.text_input("Enter your OpenAI API key to generate descriptions", type="password")
-        
-        if api_key and st.button("Generate Descriptions"):
-            client = OpenAI(api_key=api_key)
-            descriptions = []
-
-            with st.spinner("Generating descriptions..."):
-                progress_bar = st.progress(0)
-                for i, temp_file_path in enumerate(st.session_state.processed_images_paths):
-                    description = describe_image(client, temp_file_path)
-                    descriptions.append((f"{i}.txt", description.encode('utf-8')))
-                    progress_bar.progress((i + 1) / len(st.session_state.processed_images_paths))
-
-            descriptions_zip = io.BytesIO()
-            with zipfile.ZipFile(descriptions_zip, 'w') as zf:
-                for filename, data in descriptions:
-                    zf.writestr(filename, data)
-
             st.download_button(
-                label="Download Descriptions",
-                data=descriptions_zip.getvalue(),
+                label="Download descriptions",
+                data=st.session_state.descriptions_zip,
                 file_name="descriptions.zip",
                 mime="application/zip"
             )
-        elif not api_key:
-            st.warning("Please enter your OpenAI API key to generate descriptions.")
+
+    elif not api_key:
+        st.warning("Please enter your OpenAI API key to start.")
 
 if __name__ == "__main__":
     main()
