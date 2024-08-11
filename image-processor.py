@@ -76,7 +76,7 @@ def describe_image(client, img_path):
     return response.choices[0].message.content
 
 def main():
-    st.title("Image Processing and Description Generation for LORA Fine-Tuning")
+    st.title("Image Processing and Captions Generation for LORA Fine-Tuning")
 
     if 'images_zip' not in st.session_state:
         st.session_state.images_zip = None
