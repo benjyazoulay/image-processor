@@ -1,11 +1,17 @@
 import streamlit as st
 import os
-from PIL import Image
 import io
 import zipfile
 from openai import OpenAI
 import base64
 import tempfile
+import pandas as pd
+from datasets import Dataset
+from huggingface_hub import HfApi, create_repo
+from PIL import Image  # Pour ouvrir les images avec PIL
+from datasets import Dataset, Features, Image as HfImage, Value  # Pour créer le dataset avec Hugging Face
+import numpy as np
+
 
 def crop_and_resize_image(image, size):
     width, height = image.size
@@ -16,6 +22,41 @@ def crop_and_resize_image(image, size):
     bottom = (height + new_size) / 2
     image = image.crop((left, top, right, bottom))
     return image.resize((size, size), Image.LANCZOS)
+
+
+
+
+
+
+def upload_to_huggingface(images, descriptions, repo_name, token):
+    # Convert raw image data to PIL images
+    image_data = [Image.open(io.BytesIO(img_data)) for img_data in images]
+    
+    # Créer un DataFrame pour construire le dataset
+    data = {
+        'image': image_data,
+        'text': descriptions
+    }
+    
+    # Créer les caractéristiques pour le dataset
+    features = Features({
+        'image': HfImage(),  # Utilise l'Image de datasets pour les données image
+        'text': Value(dtype="string")
+    })
+
+    # Créer un Dataset à partir des images et des descriptions
+    dataset = Dataset.from_dict(data, features=features)
+
+    # Pousser le dataset sur Hugging Face Hub
+    dataset.push_to_hub(repo_name, token=token, split="train")
+
+    st.success(f"Dataset successfully uploaded to {repo_name} on Hugging Face!")
+
+
+
+
+
+
 
 def describe_image(client, img_path):
     describe_system_prompt = '''
@@ -174,6 +215,32 @@ def main():
 
     elif not api_key:
         st.warning("Please enter your OpenAI API key to start.")
+
+    if st.session_state.processed:
+        st.subheader("Upload to Hugging Face")
+        repo_name = st.text_input("Enter Hugging Face repository name")
+        hf_token = st.text_input("Enter your Hugging Face token", type="password")
+
+        if st.button("Upload to Hugging Face"):
+            if repo_name and hf_token:
+                # Extraire les images et les descriptions des fichiers ZIP
+                image_data = []
+                descriptions = []
+
+                with zipfile.ZipFile(io.BytesIO(st.session_state.images_zip)) as zf:
+                    for filename in zf.namelist():
+                        with zf.open(filename) as file:
+                            image_data.append(file.read())
+
+                with zipfile.ZipFile(io.BytesIO(st.session_state.descriptions_zip)) as zf:
+                    for filename in zf.namelist():
+                        with zf.open(filename) as file:
+                            descriptions.append(file.read().decode('utf-8'))
+
+                # Appel de la fonction pour uploader le dataset
+                upload_to_huggingface(image_data, descriptions, repo_name, hf_token)
+            else:
+                st.warning("Please enter both the repository name and Hugging Face token.")
 
 if __name__ == "__main__":
     main()
