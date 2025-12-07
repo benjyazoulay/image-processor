@@ -50,7 +50,7 @@ def generate_caption(api_key, image_path, artist_name, custom_instructions):
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high"}},
                 ]}
             ],
-            max_tokens=300
+            max_completion_tokens=300
         )
         return response.choices[0].message.content
     except Exception as e:
