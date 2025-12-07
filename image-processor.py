@@ -102,8 +102,6 @@ if "zip_path" not in st.session_state:
     st.session_state.zip_path = None
 
 def run_process():
-    # Création de dossiers temporaires
-    # On utilise un gestionnaire de contexte pour s'assurer que c'est nettoyé si ça crash
     temp_dir = tempfile.mkdtemp()
     input_dir = os.path.join(temp_dir, "input")
     output_dir = os.path.join(temp_dir, "output")
@@ -111,9 +109,9 @@ def run_process():
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        # 1. Extraction / Sauvegarde des inputs sur le disque
+        # 1. Extraire les fichiers
         files_found = []
-        
+
         if input_method == "Upload Fichiers" and uploaded_files:
             for up_file in uploaded_files:
                 path = os.path.join(input_dir, up_file.name)
@@ -124,66 +122,64 @@ def run_process():
         elif input_method == "Upload Zip" and uploaded_zip:
             with zipfile.ZipFile(uploaded_zip) as z:
                 z.extractall(input_dir)
-            # Scan récursif pour trouver les images extraites
-            for root, dirs, files in os.walk(input_dir):
+            for root, _, files in os.walk(input_dir):
                 for file in files:
-                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')) and not file.startswith('__MACOSX'):
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                         files_found.append(os.path.join(root, file))
 
         elif input_method == "URL Zip" and zip_url:
             r = requests.get(zip_url)
             z = zipfile.ZipFile(io.BytesIO(r.content))
             z.extractall(input_dir)
-            for root, dirs, files in os.walk(input_dir):
+            for root, _, files in os.walk(input_dir):
                 for file in files:
-                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')) and not file.startswith('__MACOSX'):
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                         files_found.append(os.path.join(root, file))
 
         if not files_found:
             st.warning("Aucune image trouvée.")
             return
 
-        st.info(f"{len(files_found)} images extraites sur le disque temporaire. Début du traitement...")
-        
-        # 2. Traitement Image par Image
+        st.info(f"{len(files_found)} images trouvées.")
+
         progress_bar = st.progress(0)
         status = st.empty()
-        
+
+        # 2. Traitement
         for i, img_path in enumerate(files_found):
             filename = os.path.basename(img_path)
             status.text(f"Traitement : {filename}...")
-            
-            # A. Générer Caption
+
             caption = generate_caption(api_key, img_path, artist_name, system_prompt)
-            
+
             if caption:
-                # B. Sauvegarder Image (Conversion PNG) dans Output
                 save_processed_image(img_path, output_dir)
-                
-                # C. Sauvegarder TXT dans Output
-                base_name = os.path.splitext(filename)[0]
-                txt_path = os.path.join(output_dir, f"{base_name}.txt")
+
+                txt_path = os.path.join(output_dir, f"{os.path.splitext(filename)[0]}.txt")
                 with open(txt_path, "w", encoding="utf-8") as f:
                     f.write(caption)
-            
-            # Nettoyage manuel de la mémoire pour être sûr
+
             gc.collect()
             progress_bar.progress((i + 1) / len(files_found))
 
-            # 3. Création du Zip Final sur le disque
-            status.text("Compression du résultat...")
-            zip_base = os.path.join(temp_dir, "dataset_final")
-            shutil.make_archive(zip_base, 'zip', output_dir)
+        # 3. Créer le zip
+        status.text("Compression du résultat...")
+        shutil.make_archive(os.path.join(temp_dir, "dataset_final"), "zip", output_dir)
 
-            final_zip_path = zip_base + ".zip"
+        # Lire le zip
+        zip_path = os.path.join(temp_dir, "dataset_final.zip")
+        with open(zip_path, "rb") as f:
+            st.session_state.zip_data = f.read()
 
-            with open(final_zip_path, "rb") as f:
-                st.session_state.zip_data = f.read()
+        st.success("Traitement terminé !")
 
-            st.success("Traitement terminé ! Vous pouvez télécharger.")
+    except Exception as e:
+        st.error(f"Erreur : {e}")
 
-            # ❗ NE PAS SUPPRIMER ICI
-            # shutil.rmtree(temp_dir)   # ➜ à ne pas faire !
+    finally:
+        # ❗ SI tu veux éviter le ZIP vide, NE supprime PAS tout de suite
+        pass
+
 
 
 
