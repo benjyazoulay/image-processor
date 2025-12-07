@@ -55,7 +55,7 @@ def generate_caption(api_key, image_path, artist_name, custom_system_prompt):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-5-nano",  # ⚠️ Si ce modèle n'existe pas pour votre clé, l'erreur sera capturée ci-dessous
+            model="gpt-4.1-nano",  
             messages=[
                 {"role": "system", "content": custom_system_prompt},
                 {"role": "user", "content": [
