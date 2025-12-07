@@ -1,7 +1,4 @@
 streamlit
-Pillow
 openai
-python-dotenv
-pandas
-datasets
-huggingface_hub
+Pillow
+requests
