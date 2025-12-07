@@ -170,25 +170,21 @@ def run_process():
             gc.collect()
             progress_bar.progress((i + 1) / len(files_found))
 
-        # 3. Création du Zip Final sur le disque
-        status.text("Compression du résultat...")
-        shutil.make_archive(os.path.join(temp_dir, "dataset_final"), 'zip', output_dir)
-        
-        # On lit le zip final pour le mettre en session state (ou on le déplace)
-        # Pour éviter de tout charger en RAM, on va juste laisser le fichier là temporairement 
-        # Mais Streamlit Cloud nettoie le tmp parfois. Le mieux est de le lire une fois.
-        final_zip_path = os.path.join(temp_dir, "dataset_final.zip")
-        
-        with open(final_zip_path, "rb") as f:
-            st.session_state.zip_data = f.read()
-            
-        st.success("Traitement terminé ! Vous pouvez télécharger.")
+            # 3. Création du Zip Final sur le disque
+            status.text("Compression du résultat...")
+            zip_base = os.path.join(temp_dir, "dataset_final")
+            shutil.make_archive(zip_base, 'zip', output_dir)
 
-    except Exception as e:
-        st.error(f"Une erreur est survenue : {e}")
-    finally:
-        # Nettoyage du dossier temporaire
-        shutil.rmtree(temp_dir, ignore_errors=True)
+            final_zip_path = zip_base + ".zip"
+
+            with open(final_zip_path, "rb") as f:
+                st.session_state.zip_data = f.read()
+
+            st.success("Traitement terminé ! Vous pouvez télécharger.")
+
+            # ❗ NE PAS SUPPRIMER ICI
+            # shutil.rmtree(temp_dir)   # ➜ à ne pas faire !
+
 
 
 # --- SECTION UPLOAD ---
