@@ -60,7 +60,7 @@ def generate_caption(api_key, image_path, artist_name, custom_system_prompt):
                 {"role": "system", "content": custom_system_prompt},
                 {"role": "user", "content": [
                     {"type": "text", "text": user_instruction},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}", "detail": "high"}},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
                 ]}
             ],
             max_completion_tokens=300
