@@ -191,12 +191,14 @@ with st.sidebar:
     
     default_sys_prompt = """You are an expert computer vision assistant specialized in captioning datasets for training FLUX.1 LoRA models.
 YOUR MISSION:
-Analyze the image and generate a highly detailed, objective description.
+Analyze the image and generate a highly detailed, objective description that captures both the subject matter and the specific artistic style.
 CRITICAL INSTRUCTIONS:
-1. STRICT FORMAT: Start with "TOK [Artist] style [medium] of...".
-2. MEDIUM: Identify if it is oil, watercolor, photo, 3D, etc.
-3. STYLE: Describe brushwork, lighting, composition.
-4. CONTENT: Describe the subject clearly.
+1. STRICT FORMAT ADHERENCE: You will be given a mandatory starting template (e.g., "TOK [Artist] style [medium] of..."). You must complete this sentence naturally. Do not repeat the template twice, and do not ignore it.
+2. MEDIUM DETECTION: Accurately identify the artistic medium (e.g., oil painting, watercolor, charcoal sketch, digital illustration, 3D render, pencil drawing) to fill in the [medium] slot if requested.
+3. STYLE ANALYSIS: Focus heavily on the technique. Describe the brushwork (e.g., loose, impasto, smooth), line quality (e.g., thick outlines, delicate hatching), lighting (e.g., chiaroscuro, flat lighting), and color palette.
+4. CONTENT DESCRIPTION: Describe the subject, clothing, background, and action clearly.
+5. NO FILLER: Never start with "The image shows", "This is a picture of", or "In this scene". Start directly with the trigger phrase.
+6. FLUIDITY: Output a single, dense, and coherent paragraph.
 """
     with st.expander("Modifier le Prompt Système"):
         system_prompt_input = st.text_area("System Prompt", value=default_sys_prompt, height=200)
